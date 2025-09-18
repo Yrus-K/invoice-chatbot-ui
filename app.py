@@ -71,12 +71,17 @@ def display_invoice_card(data):
     """)
     st.markdown("---")
 
-
 # ---------------------------------------------------
 # 🔹 Main Chatbot Logic
 # ---------------------------------------------------
 user_input = st.text_input("Ask a question about invoices:", key="chat_input")
-st.info("Examples: 'What is the status of INV1002?', 'Show me all pending invoices', 'Which invoices are from vendor: Acme Corp?', 'Which invoices have an amount > 5000?'")
+st.info("Examples:\n\n"
+        "- **Specific Invoice ID:** `What is the status of INV1002?` or `Show me details for INV1001.`\n"
+        "- **Status:** `Show me all pending invoices.` or `Which invoices are approved?`\n"
+        "- **Vendor/Customer:** `Show me invoices from vendor: Acme Corp.` or `Which invoices belong to customer: Global Tech?`\n"
+        "- **Amount:** `Show invoices with amount > 5000.` or `List invoices with amount < 10000.` or `Which invoices are equal to 2500?`\n"
+        "- **Date:** `Show invoices from last_updated: 2023-01-15.` or `List invoices before 2023-01-20.` or `Which invoices were updated after 2023-01-10?`")
+
 
 if user_input:
     # Query Gemini to interpret the user's intent
@@ -111,7 +116,7 @@ if user_input:
         else:
             st.error(f"Invoice **{invoice_id}** not found.")
 
-    # 3. Status Queries (e.g., "pending", "approved")
+    # 3. Status Queries (e.g., "pending", "approved", "rejected")
     elif any(status in gemini_result for status in ["pending", "approved", "rejected"]):
         status_query = next((s for s in ["pending", "approved", "rejected"] if s in gemini_result), None)
         if invoices:
@@ -123,25 +128,64 @@ if user_input:
         else:
             st.warning("Could not retrieve invoice data.")
 
-    # 4. Amount Threshold Query (e.g., "amount > 10000")
-    elif "amount >" in gemini_result:
-        match = re.search(r'amount\s*>\s*(\d+)', gemini_result)
+    # 4. Amount Threshold Query (e.g., "amount > 10000", "amount < 5000", "amount = 2500")
+    elif "amount" in gemini_result:
+        match = re.search(r'amount\s*([<>=])\s*(\d+)', gemini_result)
         if invoices and match:
-            threshold = int(match.group(1))
-            filtered = [inv for inv in invoices if inv["amount"] > threshold]
-            st.info(f"💰 Found **{len(filtered)}** invoices with amounts greater than `Rs. {threshold}`.")
+            operator = match.group(1)
+            threshold = int(match.group(2))
+            filtered = []
+
+            if operator == '>':
+                filtered = [inv for inv in invoices if inv["amount"] > threshold]
+            elif operator == '<':
+                filtered = [inv for inv in invoices if inv["amount"] < threshold]
+            elif operator == '=':
+                filtered = [inv for inv in invoices if inv["amount"] == threshold]
+            
+            st.info(f"💰 Found **{len(filtered)}** invoices with amounts {operator} `Rs. {threshold}`.")
             for inv in filtered:
                 st.markdown(f"- **{inv['invoice_id']}** | Amount: `Rs. {inv['amount']}` | Status: `{inv['status']}`")
-
+    
     # 5. Vendor or Customer Query
     elif "vendor:" in gemini_result or "customer:" in gemini_result:
         key = "vendor" if "vendor:" in gemini_result else "customer"
         name = gemini_result.split(":")[1].strip()
-        filtered = [inv for inv in invoices if inv.get(key, "").lower() == name.lower()]
-        st.info(f"🔍 Found **{len(filtered)}** invoices for **{key.title()} '{name}'**.")
-        for inv in filtered:
-            st.markdown(f"- **{inv['invoice_id']}** | Amount: `Rs. {inv['amount']}` | Status: `{inv['status']}`")
+        if invoices:
+            filtered = [inv for inv in invoices if inv.get(key, "").lower() == name.lower()]
+            st.info(f"🔍 Found **{len(filtered)}** invoices for **{key.title()} '{name}'**.")
+            for inv in filtered:
+                st.markdown(f"- **{inv['invoice_id']}** | Amount: `Rs. {inv['amount']}` | Status: `{inv['status']}`")
+        else:
+            st.warning("Could not retrieve invoice data.")
+    
+    # 6. Date Queries (e.g., "last_updated > 2023-01-15")
+    elif "last_updated" in gemini_result:
+        date_match = re.search(r'last_updated\s*([<>=])\s*(\d{4}-\d{2}-\d{2})', gemini_result)
+        if invoices and date_match:
+            operator = date_match.group(1)
+            date_str = date_match.group(2)
+            query_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            
+            filtered = []
+            for inv in invoices:
+                invoice_date = datetime.strptime(inv["last_updated"].split('T')[0], "%Y-%m-%d").date()
+                if operator == '>':
+                    if invoice_date > query_date:
+                        filtered.append(inv)
+                elif operator == '<':
+                    if invoice_date < query_date:
+                        filtered.append(inv)
+                elif operator == '=':
+                    if invoice_date == query_date:
+                        filtered.append(inv)
+            
+            st.info(f"📅 Found **{len(filtered)}** invoices with last_updated date {operator} `{date_str}`.")
+            for inv in filtered:
+                st.markdown(f"- **{inv['invoice_id']}** | Last Updated: `{inv['last_updated']}` | Status: `{inv['status']}`")
+        else:
+            st.warning("Could not process the date query. Please use the YYYY-MM-DD format.")
 
-    # 6. Fallback/Unrecognized Intent
+    # 7. Fallback/Unrecognized Intent
     else:
         st.warning("🤔 I'm sorry, I couldn't understand that query. Please try rephrasing.")
