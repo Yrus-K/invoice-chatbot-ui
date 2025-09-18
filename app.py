@@ -86,7 +86,9 @@ st.info("Examples:\n\n"
 if user_input:
     # Query Gemini to interpret the user's intent
     with st.spinner("Processing your request..."):
-        gemini_result = query_gemini(user_input)
+        # The prompt is now included here to guide Gemini's response format
+        prompt = f"Analyze the user query and identify the invoice ID, status, amount, vendor, customer, or date. Respond with only a lowercase, single-line, structured output like 'invoice:inv1001', 'status:approved', 'vendor:acme corp', 'amount>5000', 'date>2023-01-15'. If you cannot find a specific match, respond with 'unrecognized'."
+        gemini_result = query_gemini(f"{prompt} The user query is: '{user_input}'")
 
     # Fetch all invoices for general queries
     invoices = get_all_invoices()
@@ -117,8 +119,8 @@ if user_input:
             st.error(f"Invoice **{invoice_id}** not found.")
 
     # 3. Status Queries (e.g., "pending", "approved", "rejected")
-    elif any(status in gemini_result for status in ["pending", "approved", "rejected"]):
-        status_query = next((s for s in ["pending", "approved", "rejected"] if s in gemini_result), None)
+    elif "status:" in gemini_result:
+        status_query = gemini_result.split("status:")[1].strip()
         if invoices:
             filtered = [inv for inv in invoices if inv["status"].lower() == status_query]
             st.info(f"✅ Found **{len(filtered)}** {status_query.title()} invoices.")
@@ -135,7 +137,7 @@ if user_input:
             operator = match.group(1)
             threshold = int(match.group(2))
             filtered = []
-
+            
             if operator == '>':
                 filtered = [inv for inv in invoices if inv["amount"] > threshold]
             elif operator == '<':
@@ -160,8 +162,8 @@ if user_input:
             st.warning("Could not retrieve invoice data.")
     
     # 6. Date Queries (e.g., "last_updated > 2023-01-15")
-    elif "last_updated" in gemini_result:
-        date_match = re.search(r'last_updated\s*([<>=])\s*(\d{4}-\d{2}-\d{2})', gemini_result)
+    elif "date" in gemini_result:
+        date_match = re.search(r'date\s*([<>=])\s*(\d{4}-\d{2}-\d{2})', gemini_result)
         if invoices and date_match:
             operator = date_match.group(1)
             date_str = date_match.group(2)
@@ -185,7 +187,7 @@ if user_input:
                 st.markdown(f"- **{inv['invoice_id']}** | Last Updated: `{inv['last_updated']}` | Status: `{inv['status']}`")
         else:
             st.warning("Could not process the date query. Please use the YYYY-MM-DD format.")
-
+    
     # 7. Fallback/Unrecognized Intent
     else:
         st.warning("🤔 I'm sorry, I couldn't understand that query. Please try rephrasing.")
