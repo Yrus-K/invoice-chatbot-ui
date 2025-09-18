@@ -33,7 +33,7 @@ def query_gemini(user_input):
 def get_all_invoices():
     """Fetch all pending invoices from the mock backend API."""
     try:
-        response = requests.get("https://fastapi-railway-test.onrender.com/pending")
+        response = requests.get("https://invoice-backend.onrender.com/pending")
         if response.status_code == 200:
             return response.json().get("pending_invoices", [])
         response.raise_for_status()
@@ -44,7 +44,7 @@ def get_all_invoices():
 def get_invoice_by_id(invoice_id):
     """Fetch a single invoice by its ID."""
     try:
-        response = requests.get(f"https://fastapi-railway-test.onrender.com/invoice/{invoice_id}")
+        response = requests.get(f"https://invoice-backend.onrender.com/invoice/{invoice_id}")
         if response.status_code == 200:
             return response.json()
         response.raise_for_status()
