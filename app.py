@@ -15,7 +15,7 @@ st.markdown("A smart assistant for your accounts payable and receivable queries.
 # 🔹 Configure Gemini API
 # ---------------------------------------------------
 # ⚠️ WARNING: Never commit API keys directly to your repository!
-genai.configure(api_key="AIzaSyDx_TGoWiG6qx-rikSbGmatF8SFuNgufcw")  # Replace with your actual key
+genai.configure(api_key="AIzaSyC4uz5jNcZGbI4VfyOpHSFUbyWeWwBOFII")  # Replace with your actual key
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 def query_gemini(user_input):
